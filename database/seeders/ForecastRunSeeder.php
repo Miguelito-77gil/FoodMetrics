@@ -1,0 +1,161 @@
+<?php
+
+namespace Database\Seeders;
+
+use App\Models\ForecastRun;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
+use RuntimeException;
+
+class ForecastRunSeeder extends Seeder
+{
+    public function run(): void
+    {
+        $configurations = [
+            [
+                'forecast_name' => 'November 2026 Sales Forecast',
+                'forecast_type' => 'sales',
+                'model_name' => 'Moving Average',
+                'model_version' => '1.0',
+                'parameters' => [
+                    'method' => 'moving_average',
+                    'window_days' => 7,
+                    'target' => 'daily_completed_sales',
+                    'source_table' => 'orders',
+                    'source_filter' => [
+                        'status' => 'completed',
+                    ],
+                    'historical_period' => '12 months',
+                    'forecast_horizon_days' => 30,
+                    'data_label' => 'synthetic_simulated_historical_data',
+                ],
+            ],
+            [
+                'forecast_name' => 'November 2026 Revenue Forecast',
+                'forecast_type' => 'revenue',
+                'model_name' => 'Weighted Moving Average',
+                'model_version' => '1.0',
+                'parameters' => [
+                    'method' => 'weighted_moving_average',
+                    'weights' => [0.5, 0.3, 0.2],
+                    'target' => 'daily_completed_revenue',
+                    'source_table' => 'orders',
+                    'source_filter' => [
+                        'status' => 'completed',
+                    ],
+                    'historical_period' => '12 months',
+                    'forecast_horizon_days' => 30,
+                    'data_label' => 'synthetic_simulated_historical_data',
+                ],
+            ],
+            [
+                'forecast_name' => 'November 2026 Ingredient Demand Forecast',
+                'forecast_type' => 'demand',
+                'model_name' => 'Recipe-Based Demand Model',
+                'model_version' => '1.0',
+                'parameters' => [
+                    'method' => 'recipe_based_demand',
+                    'source_tables' => [
+                        'orders',
+                        'order_items',
+                        'recipes',
+                        'recipe_ingredients',
+                    ],
+                    'order_filter' => [
+                        'status' => 'completed',
+                    ],
+                    'forecast_horizon_days' => 30,
+                    'unit_basis' => 'ingredient_base_unit',
+                    'data_label' => 'synthetic_simulated_historical_data',
+                ],
+            ],
+            [
+                'forecast_name' => 'November 2026 Inventory Replenishment Forecast',
+                'forecast_type' => 'inventory',
+                'model_name' => 'Reorder Point Model',
+                'model_version' => '1.0',
+                'parameters' => [
+                    'method' => 'reorder_point',
+                    'source_tables' => [
+                        'ingredients',
+                        'inventory_movements',
+                        'recipes',
+                        'recipe_ingredients',
+                    ],
+                    'forecast_horizon_days' => 30,
+                    'stock_basis' => 'current_stock_and_historical_consumption',
+                    'recommendation_basis' => 'projected_demand_and_minimum_stock',
+                    'data_label' => 'synthetic_simulated_historical_data',
+                ],
+            ],
+        ];
+
+        DB::transaction(function () use ($configurations) {
+            if (ForecastRun::query()->exists()) {
+                throw new RuntimeException(
+                    'Forecast runs already exist. Seeder stopped to protect existing data.'
+                );
+            }
+
+            $admin = DB::table('users')
+                ->where('email', 'owner@olivegrovekitchen.test')
+                ->where('role', 'admin')
+                ->where('is_active', true)
+                ->first();
+
+            if (!$admin) {
+                throw new RuntimeException(
+                    'An active admin account is required.'
+                );
+            }
+
+            $created = 0;
+
+            foreach ($configurations as $configuration) {
+                ForecastRun::create([
+                    'forecast_name' => $configuration['forecast_name'],
+                    'forecast_type' => $configuration['forecast_type'],
+                    'model_name' => $configuration['model_name'],
+                    'model_version' => $configuration['model_version'],
+
+                    'training_start_date' => '2025-11-01',
+                    'training_end_date' => '2026-10-31',
+
+                    'forecast_start_date' => '2026-11-01',
+                    'forecast_end_date' => '2026-11-30',
+
+                    // Output records will be generated by the next seeders.
+                    'status' => 'pending',
+
+                    'parameters' => $configuration['parameters'],
+                    'results_summary' => null,
+                    'error_message' => null,
+
+                    'created_by' => $admin->id,
+                    'started_at' => null,
+                    'completed_at' => null,
+                ]);
+
+                echo "{$configuration['forecast_type']}"
+                    . " | {$configuration['forecast_name']}"
+                    . " | {$configuration['model_name']}"
+                    . PHP_EOL;
+
+                $created++;
+            }
+
+            if ($created !== 4) {
+                throw new RuntimeException(
+                    "Expected 4 forecast runs, created {$created}."
+                );
+            }
+
+            echo PHP_EOL;
+            echo "Forecast runs created: {$created}" . PHP_EOL;
+            echo "Training period: 2025-11-01 to 2026-10-31" . PHP_EOL;
+            echo "Forecast horizon: 2026-11-01 to 2026-11-30" . PHP_EOL;
+            echo "Initial status: pending" . PHP_EOL;
+            echo "Created by admin ID: {$admin->id}" . PHP_EOL;
+        });
+    }
+}
